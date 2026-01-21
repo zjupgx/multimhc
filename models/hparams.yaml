@@ -1,0 +1,12 @@
+conv1_dim: 256
+conv2_dim: 128
+layer1_size: 256
+batch_size: 128
+final_fc: 512
+gnn_weight: 0.5
+rnn_weight: 0.5
+embed_dim: 512
+rnn_dim: 256
+dropout: 0.3
+activation: relu
+gnn_type: GCN
