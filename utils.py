@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import re
 import torch
@@ -13,7 +14,7 @@ script_path = Path(__file__).parent.absolute()
 edge_index = np.load(Path.joinpath(script_path, 'models/edge_index.npy'))
 edge_index = torch.tensor(edge_index)
 re_hla = re.compile(r'(HLA-[ABC])(\d{2}\:\d{2})')
-with open (Path.joinpath(script_path, 'models/MHC_pseudo.dat')) as f:
+with open(Path.joinpath(script_path, 'models/MHC_pseudo.dat')) as f:
     lines = f.read().splitlines()
 hla_dic = {}
 for line in lines[1:]:
@@ -21,6 +22,42 @@ for line in lines[1:]:
     if re_hla.match(hla):
         hla = '*'.join(re_hla.match(hla).groups())
         hla_dic[hla] = seq
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-i', '--input', metavar='input.csv',
+                        help='Input file for prediction with columns "peptide" and "HLA".', required=True)
+    parser.add_argument('-o', '--output', metavar='output.csv',
+                        help='Output file for results')
+    parser.add_argument(
+        '-d', '--device',
+        choices=['auto', 'cpu', 'gpu'],
+        default='auto',
+        help='Device to use: auto (default), cpu, or gpu'
+    )
+    return parser
+
+
+def resolve_device(device_arg):
+    if device_arg == 'cpu':
+        return torch.device('cpu'), False
+
+    if device_arg == 'gpu':
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                'GPU was requested (--device gpu) but CUDA is not available. '
+                'Please check running enviroment.'
+            )
+        return torch.device('cuda:0'), True
+
+    # auto
+    if torch.cuda.is_available():
+        return torch.device('cuda:0'), True
+    else:
+        return torch.device('cpu'), False
+
 
 def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps, last_epoch=-1):
     """
@@ -62,9 +99,9 @@ class Combine_dataset(Dataset):
 
     def __getitem__(self, index):
         data = {'gnn_input': self.gnn_x[index],
-                'rnn_input': self.rnn_x[index],}
+                'rnn_input': self.rnn_x[index], }
         return data
-    
+
 
 class BipartiteData(Data):
     def __init__(self, edge_index=None, x_s=None, x_t=None):
@@ -88,7 +125,7 @@ def parse_data(seq_idx):
                          torch.LongTensor(x_s), torch.LongTensor(x_t))
     return data
 
-    
+
 class Process():
     def __init__(self, seqs, labels=None, seq_len=49):
         self.seqs = seqs
@@ -115,8 +152,8 @@ class Process():
             seq = self.pad_seq(seq, seq_len=self.seq_len)
             seqs_idx.append([aa_idx[aa] for aa in seq])
         return torch.LongTensor(seqs_idx)
-    
-    
+
+
 class Fusion_datamodule(pl.LightningDataModule):
     def __init__(self, batch_size, seqs):
         super().__init__()
@@ -136,4 +173,3 @@ class Fusion_datamodule(pl.LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False)
-    

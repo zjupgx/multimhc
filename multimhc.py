@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 from models import Fusion_PL
-from utils import Fusion_datamodule, hla_dic, re_hla
+from utils import Fusion_datamodule, hla_dic, re_hla, build_parser, resolve_device
 import yaml
 import sys
 import time
@@ -50,13 +50,19 @@ def process_data(df):
     return seqs
 
 
-def predict(device=None, argv=sys.argv[1:]):
-    args = parser.parse_args(argv)
+def predict(args):
+    device, use_cuda = resolve_device(args.device)
     input_file = args.input
     input_df = pd.read_csv(input_file)
     output_df = deepcopy(input_df)
     seqs = process_data(input_df)
-    trainer = Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu",
+    if use_cuda:
+        accelerator = 'gpu'
+        devices=[0]
+    else:
+        accelerator = 'cpu'
+        devices=None
+    trainer = Trainer(accelerator=accelerator, devices=devices,
                       enable_progress_bar=False,
                       logger=False)
     fold_prob_ls = []
@@ -87,17 +93,12 @@ def predict(device=None, argv=sys.argv[1:]):
     return output_df
 
 
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+    predict(args)
+
+
 if __name__ == '__main__':
     seed_torch()
-    cuda_num = 0
-    use_cuda = False
-    DEVICE = torch.device(
-        f'cuda:{cuda_num}') if use_cuda else torch.device('cpu')
-    import argparse
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-i', '--input', metavar='input.csv',
-                        help='Input file for prediction with columns "peptide" and "HLA".', required=True)
-    parser.add_argument('-o', '--output', metavar='output.csv',
-                        help='Output file for results')
-    predict(device=DEVICE)
+    main()
