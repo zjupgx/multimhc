@@ -81,57 +81,6 @@ class GNN_model(nn.Module):
         return Linear3l_Classifier(self.layer1_size, self.layer1_size, self.layer2_size)
         
 
-class GCN_PL(pl.LightningModule):
-    def __init__(self, config, total_steps=None, device=None):
-        super().__init__()
-        self.model = GNN_model(config=config, device=device)
-        self.config = config
-        self.total_steps = total_steps
-        self.warmup_steps = math.ceil(total_steps * 0.1)
-        self.save_hyperparameters(Namespace(**self.config))
-    
-    def forward(self, batch):
-        out = self.model(batch)
-        return out
-
-    def get_loss(self, pred, label):
-        loss = nn.BCELoss()
-        return loss(pred, label.float())
-
-    def training_step(self, batch, batch_idx):
-        label = torch.tensor(batch.y).to(device=self.device)
-        pred = self.forward(batch).squeeze()
-        loss = self.get_loss(pred, label)
-        sch = self.lr_schedulers()
-        sch.step()
-        opt = self.optimizers()
-        self.log('lr', opt.state_dict()['param_groups'][0]['lr'])
-        self.log(f'loss/train_loss', loss)
-        return {'loss': loss}
-    
-    def validation_step(self, batch, batch_idx):
-        label = torch.tensor(batch.y).to(device=self.device)
-        pred = self.forward(batch).squeeze()
-        loss = self.get_loss(pred, label)
-        return {'val_loss': loss}
-
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        self.log(f'loss/val_loss', avg_loss)
-    
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(
-            self.parameters(), lr=5e-3, weight_decay=1e-2)
-        scheduler = get_linear_schedule_with_warmup(
-            optimizer, num_warmup_steps=self.warmup_steps, num_training_steps=self.total_steps)
-        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
-
-    def predict_step(self, batch, batch_idx):
-        pred = self.forward(batch)
-        label = torch.tensor(batch.y).to(device=self.device)
-        return pred.detach().cpu().view(-1).numpy(), label.cpu().numpy()
-        
-
 class Attention(nn.Module):
     def __init__(self, atten_size, return_attention=False):
         super().__init__()
@@ -258,7 +207,7 @@ class Fusion_model(nn.Module):
 
 
 class Fusion_PL(pl.LightningModule):
-    def __init__(self, config, total_steps, warmup_ratio=0.1, device=None):
+    def __init__(self, config, total_steps=None, warmup_ratio=0.1, device=None):
         super().__init__()
         self.total_steps = total_steps
         self.warmup_ratio = warmup_ratio
