@@ -27,8 +27,9 @@ It is recommended to use [Conda](https://anaconda.org/channels/anaconda/packages
 
 ## Usage
 ```
-python multimhc.py -i [input_file] -o [output_file](optional)
+python multimhc.py -i input_file(required) -o [output_file](optional) -d [auto,gpu,cpu]
 ```
+See `python multimhc.py --help` for more information.
 
 #### Examples
 ```
